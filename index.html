@@ -135,6 +135,168 @@
       text-align: center;
       display: none;
     }
+  
+    /* ================= FSC PRINT SUMMARY ================= */
+    .fsc-report-controls {
+      margin-top: 25px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .fsc-report-btn {
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #8b0000;
+      color: #fff;
+      box-shadow: 0 3px 8px rgba(0,0,0,.18);
+    }
+
+    .fsc-report-btn.secondary {
+      background: #ffcc00;
+      color: #4b0000;
+    }
+
+    #fscPrintReport {
+      display: none;
+    }
+
+    .fsc-print-header {
+      border-bottom: 4px solid #b22222;
+      padding-bottom: 12px;
+      margin-bottom: 18px;
+    }
+
+    .fsc-print-header h1 {
+      color: #8b0000;
+      margin: 0 0 5px;
+      font-size: 24px;
+    }
+
+    .fsc-print-meta {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      font-size: 12px;
+      margin: 12px 0;
+    }
+
+    .fsc-score-card {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 10px 0;
+      background: #fafafa;
+    }
+
+    .fsc-score-card strong {
+      color: #8b0000;
+    }
+
+    .fsc-finding {
+      border: 1px solid #bbb;
+      border-left: 5px solid #b22222;
+      border-radius: 7px;
+      padding: 12px;
+      margin: 12px 0;
+      page-break-inside: avoid;
+      background: #fff;
+    }
+
+    .fsc-finding-title {
+      font-weight: 800;
+      color: #222;
+      margin-bottom: 7px;
+    }
+
+    .fsc-finding-points {
+      font-size: 12px;
+      margin-bottom: 7px;
+    }
+
+    .fsc-finding-comment {
+      white-space: pre-wrap;
+      font-size: 12px;
+      margin: 8px 0;
+    }
+
+    .fsc-photo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .fsc-photo-evidence {
+      border: 1px solid #ddd;
+      padding: 6px;
+      border-radius: 6px;
+      page-break-inside: avoid;
+    }
+
+    .fsc-photo-evidence img {
+      width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+      display: block;
+      background: #f5f5f5;
+    }
+
+    .fsc-photo-note {
+      font-size: 11px;
+      margin-top: 5px;
+      white-space: pre-wrap;
+    }
+
+    .fsc-no-findings {
+      padding: 14px;
+      border: 1px dashed #999;
+      border-radius: 7px;
+      color: #555;
+    }
+
+    @media print {
+      @page {
+        size: A4;
+        margin: 12mm;
+      }
+
+      body {
+        background: #fff !important;
+        color: #222 !important;
+        display: block !important;
+        padding: 0 !important;
+      }
+
+      body > *:not(#fscPrintReport) {
+        display: none !important;
+      }
+
+      #fscPrintReport {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        color: #222 !important;
+        background: #fff !important;
+        font-family: Arial, sans-serif !important;
+      }
+
+      .fsc-print-header,
+      .fsc-score-card,
+      .fsc-finding {
+        break-inside: avoid;
+      }
+
+      .fsc-photo-evidence {
+        break-inside: avoid;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -11113,6 +11275,16 @@ function previewMultiplePhotosC.C CRITICAL Requirements(event) {
 
       
 
+
+    <div class="fsc-report-controls">
+      <button type="button" class="fsc-report-btn" onclick="printFSCGuideSummary()">
+        🖨️ PRINT FSC GUIDE SUMMARY
+      </button>
+      <button type="button" class="fsc-report-btn secondary" onclick="previewFSCGuideSummary()">
+        👁️ PREVIEW SUMMARY
+      </button>
+    </div>
+
     <div class="score-display">
       Food Safety Score: <span id="foodSafetyScore">0</span> pts<br />
       Brand Standard Score: <span id="brandStandardScore">0</span> pts<br />
@@ -11360,3 +11532,299 @@ function previewMultiplePhotosC.C CRITICAL Requirements(event) {
 
 
 
+
+<script>
+/* ================= FSC PRINT / PREVIEW - FIXED ================= */
+
+(function () {
+  "use strict";
+
+  function esc(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getScores() {
+    let food = 0;
+    let brand = 0;
+
+    document.querySelectorAll("#foodSafetyFAQ input.faq-checkbox:checked").forEach(function (cb) {
+      food += parseInt(cb.value, 10) || 0;
+    });
+
+    document.querySelectorAll("#brandStandardFAQ input.faq-checkbox:checked").forEach(function (cb) {
+      brand += parseInt(cb.value, 10) || 0;
+    });
+
+    return { food: food, brand: brand, overall: Math.max(food, brand) };
+  }
+
+  function getPerformance(score) {
+    if (score <= 5) return { text: "HIGH Performer (A)", cls: "high" };
+    if (score <= 12) return { text: "MEDIUM Performer (B)", cls: "medium" };
+    if (score <= 20) return { text: "LOW Performer (C)", cls: "low" };
+    return { text: "CRITICAL (D)", cls: "critical" };
+  }
+
+  function getSeverity(points) {
+    if (points >= 3) return "Critical";
+    if (points === 2) return "Major";
+    return "Minor";
+  }
+
+  function collectFindings(sectionId) {
+    const results = [];
+    const section = document.getElementById(sectionId);
+    if (!section) return results;
+
+    section.querySelectorAll(".faq-item").forEach(function (item) {
+      const cb = item.querySelector("input.faq-checkbox");
+      if (!cb || !cb.checked) return;
+
+      const labelEl = item.querySelector(".faq-label-text");
+      const title = labelEl ? labelEl.innerText.trim().replace(/\s+/g, " ") : "FSC Finding";
+      const points = parseInt(cb.value, 10) || 0;
+
+      const photos = [];
+
+      // Each previewBox contains one image and its textarea note.
+      item.querySelectorAll('div[id^="photoPreviewContainer"] > div').forEach(function (box) {
+        const img = box.querySelector("img");
+        if (!img || !img.src) return;
+
+        const textarea = box.querySelector("textarea");
+        photos.push({
+          src: img.src,
+          note: textarea ? textarea.value.trim() : ""
+        });
+      });
+
+      // Fallback for any unusual preview structure.
+      if (!photos.length) {
+        item.querySelectorAll('div[id^="photoPreviewContainer"] img').forEach(function (img) {
+          if (!img.src) return;
+          const box = img.parentElement;
+          const textarea = box ? box.querySelector("textarea") : null;
+          photos.push({
+            src: img.src,
+            note: textarea ? textarea.value.trim() : ""
+          });
+        });
+      }
+
+      // Also capture standalone textareas inside the finding if there are no photos.
+      let generalNote = "";
+      if (!photos.length) {
+        const notes = [];
+        item.querySelectorAll("textarea").forEach(function (ta) {
+          if (ta.value.trim()) notes.push(ta.value.trim());
+        });
+        generalNote = notes.join("\n\n");
+      }
+
+      results.push({
+        title: title,
+        points: points,
+        severity: getSeverity(points),
+        photos: photos,
+        note: generalNote
+      });
+    });
+
+    return results;
+  }
+
+  function buildReportHTML() {
+    const scores = getScores();
+    const perf = getPerformance(scores.overall);
+    const foodFindings = collectFindings("foodSafetyFAQ");
+    const brandFindings = collectFindings("brandStandardFAQ");
+
+    const now = new Date();
+    const dateText = now.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    });
+    const timeText = now.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+
+    function findingHTML(f) {
+      let photosHTML = "";
+
+      if (f.photos.length) {
+        photosHTML =
+          '<div class="photo-grid">' +
+          f.photos.map(function (p, i) {
+            return (
+              '<div class="photo-box">' +
+                '<div class="photo-label">Photo Evidence ' + (i + 1) + "</div>" +
+                '<img src="' + p.src + '" alt="FSC photo evidence">' +
+                (p.note
+                  ? '<div class="photo-note"><strong>Comment / Note:</strong><br>' + esc(p.note) + "</div>"
+                  : "") +
+              "</div>"
+            );
+          }).join("") +
+          "</div>";
+      }
+
+      const noteHTML = f.note
+        ? '<div class="general-note"><strong>Comment / Note:</strong><br>' + esc(f.note) + "</div>"
+        : "";
+
+      return (
+        '<div class="finding">' +
+          '<div class="finding-title">' + esc(f.title) + "</div>" +
+          '<div class="finding-meta">' +
+            "<strong>" + f.points + " point" + (f.points === 1 ? "" : "s") + "</strong>" +
+            " &nbsp;|&nbsp; " + esc(f.severity) +
+          "</div>" +
+          noteHTML +
+          photosHTML +
+        "</div>"
+      );
+    }
+
+    function sectionHTML(title, findings) {
+      return (
+        '<section class="report-section">' +
+          "<h2>" + title + "</h2>" +
+          (findings.length
+            ? findings.map(findingHTML).join("")
+            : '<div class="none">No checked findings in this category.</div>') +
+        "</section>"
+      );
+    }
+
+    return (
+      '<!DOCTYPE html>' +
+      '<html><head><meta charset="UTF-8">' +
+      '<title>FSC 2026 Guide Summary</title>' +
+      '<style>' +
+        '@page { size:A4; margin:12mm; }' +
+        'html,body{margin:0;padding:0;background:#fff;color:#222;font-family:Arial,Helvetica,sans-serif;}' +
+        '.report{max-width:190mm;margin:0 auto;}' +
+        '.header{border-bottom:4px solid #8b0000;padding-bottom:12px;margin-bottom:16px;}' +
+        '.header h1{margin:0;color:#8b0000;font-size:24px;}' +
+        '.header p{margin:5px 0 0;font-size:12px;color:#555;}' +
+        '.meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:14px 0;font-size:12px;}' +
+        '.summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:18px;}' +
+        '.card{border:1px solid #bbb;border-radius:7px;padding:10px;background:#fafafa;}' +
+        '.card .label{font-size:11px;color:#666;}' +
+        '.card .value{font-size:18px;font-weight:800;margin-top:3px;}' +
+        '.performance{border:2px solid #8b0000;color:#8b0000;text-align:center;font-weight:800;padding:10px;border-radius:7px;margin-bottom:18px;}' +
+        '.report-section{margin-top:18px;}' +
+        '.report-section h2{font-size:18px;color:#8b0000;border-bottom:2px solid #ddd;padding-bottom:6px;}' +
+        '.finding{border:1px solid #bbb;border-left:5px solid #8b0000;border-radius:6px;padding:10px;margin:10px 0;page-break-inside:avoid;}' +
+        '.finding-title{font-weight:800;font-size:13px;line-height:1.35;}' +
+        '.finding-meta{font-size:11px;margin-top:5px;color:#555;}' +
+        '.general-note,.photo-note{font-size:11px;line-height:1.4;margin-top:8px;white-space:pre-wrap;}' +
+        '.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px;}' +
+        '.photo-box{border:1px solid #ddd;border-radius:5px;padding:5px;page-break-inside:avoid;}' +
+        '.photo-label{font-size:10px;font-weight:700;margin-bottom:4px;}' +
+        '.photo-box img{display:block;width:100%;max-height:105mm;object-fit:contain;background:#f5f5f5;}' +
+        '.none{border:1px dashed #aaa;padding:10px;color:#666;font-size:12px;}' +
+        '.footer{margin-top:20px;border-top:1px solid #ccc;padding-top:8px;font-size:10px;color:#666;text-align:center;}' +
+        '@media print {.report{max-width:none;} .finding{break-inside:avoid;} .photo-box{break-inside:avoid;}}' +
+      '</style></head><body>' +
+      '<main class="report">' +
+        '<div class="header">' +
+          '<h1>FSC 2026 Scoring Emulator — Guide Summary</h1>' +
+          '<p>Jollibee Kiko Camarin (JBKC 3011)</p>' +
+        '</div>' +
+        '<div class="meta">' +
+          '<div><strong>Date:</strong> ' + esc(dateText) + '</div>' +
+          '<div><strong>Time:</strong> ' + esc(timeText) + '</div>' +
+        '</div>' +
+        '<div class="summary">' +
+          '<div class="card"><div class="label">Food Safety Score</div><div class="value">' + scores.food + ' pts</div></div>' +
+          '<div class="card"><div class="label">Brand Standard Score</div><div class="value">' + scores.brand + ' pts</div></div>' +
+          '<div class="card"><div class="label">Overall Score</div><div class="value">' + scores.overall + ' pts</div></div>' +
+        '</div>' +
+        '<div class="performance">' + esc(perf.text) + '</div>' +
+        sectionHTML("🧼 Food Safety Findings", foodFindings) +
+        sectionHTML("🏷️ Brand Standard Findings", brandFindings) +
+        '<div class="footer">Generated from the current FSC 2026 Scoring Emulator selections, comments, and uploaded photo evidence.</div>' +
+      '</main></body></html>'
+    );
+  }
+
+  function openFSCReport(printMode) {
+    try {
+      const reportHTML = buildReportHTML();
+      const reportWindow = window.open("", "_blank", "width=1000,height=800");
+
+      if (!reportWindow) {
+        alert("The report window was blocked by your browser. Please allow pop-ups for this site, then click the button again.");
+        return;
+      }
+
+      reportWindow.document.open();
+      reportWindow.document.write(reportHTML);
+      reportWindow.document.close();
+
+      // Wait for uploaded data-URL images to load before printing.
+      const doPrint = function () {
+        if (printMode) {
+          setTimeout(function () {
+            reportWindow.focus();
+            reportWindow.print();
+          }, 350);
+        }
+      };
+
+      const images = Array.from(reportWindow.document.images);
+
+      if (!images.length) {
+        doPrint();
+      } else {
+        let remaining = images.length;
+        let finished = false;
+
+        const done = function () {
+          remaining--;
+          if (remaining <= 0 && !finished) {
+            finished = true;
+            doPrint();
+          }
+        };
+
+        images.forEach(function (img) {
+          if (img.complete) {
+            done();
+          } else {
+            img.onload = done;
+            img.onerror = done;
+          }
+        });
+
+        setTimeout(function () {
+          if (!finished) {
+            finished = true;
+            doPrint();
+          }
+        }, 5000);
+      }
+    } catch (error) {
+      console.error("FSC report error:", error);
+      alert("Unable to create the FSC summary. Please try again. Error: " + error.message);
+    }
+  }
+
+  window.previewFSCGuideSummary = function () {
+    openFSCReport(false);
+  };
+
+  window.printFSCGuideSummary = function () {
+    openFSCReport(true);
+  };
+
+})();
+</script>
